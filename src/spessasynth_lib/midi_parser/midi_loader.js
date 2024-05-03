@@ -1,331 +1,307 @@
 import { dataBytesAmount, getChannel, messageTypes, MidiMessage } from './midi_message.js'
-import {ShiftableByteArray} from "../utils/shiftable_array.js";
+import { ShiftableByteArray } from '../utils/shiftable_array.js'
 import {
-    readByte,
-    readBytesAsString,
-    readBytesAsUintBigEndian,
-    readVariableLengthQuantity
-} from "../utils/byte_functions.js";
+  readByte,
+  readBytesAsString,
+  readBytesAsUintBigEndian,
+  readVariableLengthQuantity
+} from '../utils/byte_functions.js'
 import { consoleColors, formatTitle } from '../utils/other.js'
-export class MIDI{
+export class MIDI {
+  /**
+   * Parses a given midi file
+   * @param fileByteArray {ShiftableByteArray}
+   * @param fileName {string} optional, replaces the decoded title if empty
+   */
+  constructor(fileByteArray, fileName = '') {
+    console.groupCollapsed(`%cParsing MIDI File...`, consoleColors.info)
+
+    const headerChunk = this.readMIDIChunk(fileByteArray)
+    if (headerChunk.type !== 'MThd') {
+      throw `Invalid MIDI Header! Expected "MThd", got "${headerChunk.type}"`
+    }
+
+    if (headerChunk.size !== 6) {
+      throw `Invalid MIDI header chunk size! Expected 6, got ${headerChunk.size}`
+    }
+
+    // format (ignore)
+    readBytesAsUintBigEndian(headerChunk.data, 2)
+    // tracks count
+    this.tracksAmount = readBytesAsUintBigEndian(headerChunk.data, 2)
+    // time division
+    this.timeDivision = readBytesAsUintBigEndian(headerChunk.data, 2)
+
+    const decoder = new TextDecoder('shift-jis')
+
+    // read the copyright
+    this.copyright = ''
+
     /**
-     * Parses a given midi file
-     * @param fileByteArray {ShiftableByteArray}
-     * @param fileName {string} optional, replaces the decoded title if empty
+     * Contains all the tempo changes in the file. (Ordered from last to first)
+     * @type {{
+     *     ticks: number,
+     *     tempo: number
+     * }[]}
      */
-    constructor(fileByteArray, fileName="") {
-        console.groupCollapsed(`%cParsing MIDI File...`, consoleColors.info);
+    this.tempoChanges = [{ ticks: 0, tempo: 120 }]
 
-        const headerChunk = this.readMIDIChunk(fileByteArray);
-        if(headerChunk.type !== "MThd")
-        {
-            throw `Invalid MIDI Header! Expected "MThd", got "${headerChunk.type}"`;
+    let loopStart = null
+    let loopEnd = null
+
+    this.lastVoiceEventTick = 0
+
+    /**
+     * Midi port numbers for each tracks
+     * @type {number[]}
+     */
+    this.midiPorts = []
+
+    /**
+     * Read all the tracks
+     * @type {MidiMessage[][]}
+     */
+    this.tracks = []
+    for (let i = 0; i < this.tracksAmount; i++) {
+      /**
+       * @type {MidiMessage[]}
+       */
+      const track = []
+      const trackChunk = this.readMIDIChunk(fileByteArray)
+      this.midiPorts.push(0)
+
+      if (trackChunk.type !== 'MTrk') {
+        throw `Invalid track header! Expected "MTrk" got "${trackChunk.type}"`
+      }
+
+      /**
+       * MIDI running byte
+       * @type {number}
+       */
+      let runningByte = undefined
+
+      let totalTicks = 0
+      // loop until we reach the end of track
+      while (trackChunk.data.currentIndex < trackChunk.size) {
+        totalTicks += readVariableLengthQuantity(trackChunk.data)
+
+        // check if the status byte is valid (IE. larger than 127)
+        const statusByteCheck = trackChunk.data[trackChunk.data.currentIndex]
+
+        let statusByte
+        // if we have a running byte and the status byte isn't valid
+        if (runningByte !== undefined && statusByteCheck < 0x80) {
+          statusByte = runningByte
+        } else if (!runningByte && statusByteCheck < 0x80) {
+          // if we don't have a running byte and the status byte isn't valid, it's an error.
+          throw `Unexpected byte with no running byte. (${statusByteCheck})`
+        } else {
+          // if the status byte is valid, just use that
+          statusByte = readByte(trackChunk.data)
         }
+        const statusByteChannel = getChannel(statusByte)
 
-        if(headerChunk.size !== 6)
-        {
-            throw `Invalid MIDI header chunk size! Expected 6, got ${headerChunk.size}`;
-        }
+        let eventDataLength
 
-        // format (ignore)
-        readBytesAsUintBigEndian(headerChunk.data, 2);
-        // tracks count
-        this.tracksAmount = readBytesAsUintBigEndian(headerChunk.data, 2);
-        // time division
-        this.timeDivision = readBytesAsUintBigEndian(headerChunk.data, 2);
-
-        const decoder = new TextDecoder('shift-jis');
-
-        // read the copyright
-        this.copyright = "";
-
-        /**
-         * Contains all the tempo changes in the file. (Ordered from last to first)
-         * @type {{
-         *     ticks: number,
-         *     tempo: number
-         * }[]}
-         */
-        this.tempoChanges = [{ticks: 0, tempo: 120}];
-
-        let loopStart = null;
-        let loopEnd = null;
-
-        this.lastVoiceEventTick = 0;
-
-        /**
-         * Midi port numbers for each tracks
-         * @type {number[]}
-         */
-        this.midiPorts = [];
-
-        /**
-         * Read all the tracks
-         * @type {MidiMessage[][]}
-         */
-        this.tracks = [];
-        for(let i = 0; i < this.tracksAmount; i++)
-        {
-            /**
-             * @type {MidiMessage[]}
-             */
-            const track = [];
-            const trackChunk = this.readMIDIChunk(fileByteArray);
-            this.midiPorts.push(0)
-
-            if(trackChunk.type !== "MTrk")
-            {
-                throw `Invalid track header! Expected "MTrk" got "${trackChunk.type}"`;
+        // determine the message's length;
+        switch (statusByteChannel) {
+          case -1:
+            // system common/realtime (no length)
+            eventDataLength = 0
+            break
+          case -2:
+            // meta (the next is the actual status byte)
+            statusByte = readByte(trackChunk.data)
+            eventDataLength = readVariableLengthQuantity(trackChunk.data)
+            break
+          case -3:
+            // sysex
+            eventDataLength = readVariableLengthQuantity(trackChunk.data)
+            break
+          default:
+            // voice message
+            // get the midi message length
+            if (totalTicks > this.lastVoiceEventTick) {
+              this.lastVoiceEventTick = totalTicks
             }
-
-            /**
-             * MIDI running byte
-             * @type {number}
-             */
-            let runningByte = undefined;
-
-            let totalTicks = 0;
-            // loop until we reach the end of track
-            while(trackChunk.data.currentIndex < trackChunk.size)
-            {
-                totalTicks += readVariableLengthQuantity(trackChunk.data);
-
-                // check if the status byte is valid (IE. larger than 127)
-                const statusByteCheck = trackChunk.data[trackChunk.data.currentIndex];
-
-                let statusByte;
-                // if we have a running byte and the status byte isn't valid
-                if(runningByte !== undefined && statusByteCheck < 0x80)
-                {
-                    statusByte = runningByte;
-                }
-                else if(!runningByte && statusByteCheck < 0x80)
-                {
-                    // if we don't have a running byte and the status byte isn't valid, it's an error.
-                    throw `Unexpected byte with no running byte. (${statusByteCheck})`;
-                }
-                else
-                {
-                    // if the status byte is valid, just use that
-                    statusByte = readByte(trackChunk.data);
-                }
-                const statusByteChannel = getChannel(statusByte);
-
-                let eventDataLength;
-
-                // determine the message's length;
-                switch(statusByteChannel)
-                {
-                    case -1:
-                        // system common/realtime (no length)
-                        eventDataLength = 0;
-                        break;
-                    case -2:
-                        // meta (the next is the actual status byte)
-                        statusByte = readByte(trackChunk.data);
-                        eventDataLength = readVariableLengthQuantity(trackChunk.data);
-                        break;
-                    case -3:
-                        // sysex
-                        eventDataLength = readVariableLengthQuantity(trackChunk.data);
-                        break;
-                    default:
-                        // voice message
-                        // get the midi message length
-                        if(totalTicks > this.lastVoiceEventTick)
-                        {
-                            this.lastVoiceEventTick = totalTicks;
-                        }
-                        eventDataLength = dataBytesAmount[statusByte >> 4];
-                        break;
-                }
-
-                // put the event data into the array
-                const eventData = new ShiftableByteArray(eventDataLength);
-                const messageData = trackChunk.data.slice(trackChunk.data.currentIndex, trackChunk.data.currentIndex + eventDataLength);
-                trackChunk.data.currentIndex += eventDataLength;
-                eventData.set(messageData, 0);
-
-                runningByte = statusByte;
-
-                const message = new MidiMessage(totalTicks, statusByte, eventData);
-                track.push(message);
-
-                // check for tempo change
-                if(statusByte === messageTypes.setTempo)
-                {
-                    this.tempoChanges.push({
-                        ticks: totalTicks,
-                        tempo: 60000000 / readBytesAsUintBigEndian(messageData, 3)
-                    });
-                }
-                else
-                // check for loop start (Marker "start")
-
-                if(statusByte === messageTypes.marker)
-                {
-                    const text = readBytesAsString(eventData, eventData.length).trim().toLowerCase();
-                    switch (text)
-                    {
-                        default:
-                            break;
-
-                        case "start":
-                        case "loopstart":
-                            loopStart = totalTicks;
-                            break;
-
-                        case "loopend":
-                            loopEnd = totalTicks;
-                    }
-                    eventData.currentIndex = 0;
-
-                }
-                else
-                // check for loop (CC 2/4)
-                if((statusByte & 0xF0) === messageTypes.controllerChange)
-                {
-                    switch(eventData[0])
-                    {
-                        case 2:
-                        case 116:
-                            loopStart = totalTicks;
-                            break;
-
-                        case 4:
-                        case 117:
-                            if(loopEnd === null)
-                            {
-                                loopEnd = totalTicks;
-                            }
-                            else
-                            {
-                                // this controller has occured more than once, this means that it doesnt indicate the loop
-                                loopEnd = 0;
-                            }
-                            break;
-                    }
-                }
-                else
-                // check for midi port
-                if(statusByte === messageTypes.midiPort)
-                {
-                    this.midiPorts[i] = eventData[0];
-                }
-                else
-                // check for copyright
-                if(statusByte === messageTypes.copyright)
-                {
-                    this.copyright += decoder.decode(eventData) + "\n";
-                }
-            }
-            this.tracks.push(track);
-            console.log(`%cParsed %c${this.tracks.length}%c / %c${this.tracksAmount}`,
-                consoleColors.info,
-                consoleColors.value,
-                consoleColors.info,
-                consoleColors.value);
+            eventDataLength = dataBytesAmount[statusByte >> 4]
+            break
         }
 
-        //this.lastVoiceEventTick = Math.max(...this.tracks.map(track =>
-        //track[track.length - 1].ticks));
-        const firstNoteOns = [];
-        for(const t of this.tracks)
-        {
-            const firstNoteOn = t.find(e => (e.messageStatusByte & 0xF0) === messageTypes.noteOn);
-            if(firstNoteOn)
-            {
-                firstNoteOns.push(firstNoteOn.ticks);
-            }
+        // put the event data into the array
+        const eventData = new ShiftableByteArray(eventDataLength)
+        const messageData = trackChunk.data.slice(
+          trackChunk.data.currentIndex,
+          trackChunk.data.currentIndex + eventDataLength
+        )
+        trackChunk.data.currentIndex += eventDataLength
+        eventData.set(messageData, 0)
+
+        runningByte = statusByte
+
+        const message = new MidiMessage(totalTicks, statusByte, eventData)
+        track.push(message)
+
+        // check for tempo change
+        if (statusByte === messageTypes.setTempo) {
+          this.tempoChanges.push({
+            ticks: totalTicks,
+            tempo: 60000000 / readBytesAsUintBigEndian(messageData, 3)
+          })
         }
-        this.firstNoteOn = Math.min(...firstNoteOns);
+        // check for loop start (Marker "start")
+        else if (statusByte === messageTypes.marker) {
+          const text = readBytesAsString(eventData, eventData.length).trim().toLowerCase()
+          switch (text) {
+            default:
+              break
 
-        console.log(`%cMIDI file parsed. Total tick time: %c${this.lastVoiceEventTick}`,
-            consoleColors.info,
-            consoleColors.recognized);
-        console.groupEnd();
-        
-        if(loopStart !== null && loopEnd === null)
-        {
-            // not a loop
-            loopStart = this.firstNoteOn;
-            loopEnd = this.lastVoiceEventTick;
+            case 'start':
+            case 'loopstart':
+              loopStart = totalTicks
+              break
+
+            case 'loopend':
+              loopEnd = totalTicks
+          }
+          eventData.currentIndex = 0
         }
-        else {
-            if (loopStart === null) {
-                loopStart = this.firstNoteOn;
-            }
+        // check for loop (CC 2/4)
+        else if ((statusByte & 0xf0) === messageTypes.controllerChange) {
+          switch (eventData[0]) {
+            case 2:
+            case 116:
+              loopStart = totalTicks
+              break
 
-            if (loopEnd === null || loopEnd === 0) {
-                loopEnd = this.lastVoiceEventTick;
-            }
+            case 4:
+            case 117:
+              if (loopEnd === null) {
+                loopEnd = totalTicks
+              } else {
+                // this controller has occured more than once, this means that it doesnt indicate the loop
+                loopEnd = 0
+              }
+              break
+          }
         }
-
-        /**
-         *
-         * @type {{start: number, end: number}}
-         */
-        this.loop = {start: loopStart, end: loopEnd};
-
-        // get track name
-        this.midiName = "";
-
-        // midi name
-        if(this.tracks.length > 1)
-        {
-            // if more than 1 track and the first track has no notes, just find the first trackName in the first track
-            if(this.tracks[0].find(
-                message => message.messageStatusByte >= messageTypes.noteOn
-                &&
-                message.messageStatusByte < messageTypes.systemExclusive
-            ) === undefined)
-            {
-                console.log("message", this.tracks[0])
-                let name = this.tracks[0].find(message => message.messageStatusByte === messageTypes.trackName);
-                if(name)
-                {
-                    this.midiName = decoder.decode(name.messageData);
-                }
-            }
+        // check for midi port
+        else if (statusByte === messageTypes.midiPort) {
+          this.midiPorts[i] = eventData[0]
         }
-        else
-        {
-            // if only 1 track, find the first "track name" event
-            let name = this.tracks[0].find(message => message.messageStatusByte === messageTypes.trackName);
-            if(name)
-            {
-                this.midiName = decoder.decode(name.messageData);
-            }
+        // check for copyright
+        else if (statusByte === messageTypes.copyright) {
+          this.copyright += decoder.decode(eventData) + '\n'
         }
+      }
+      this.tracks.push(track)
+      console.log(
+        `%cParsed %c${this.tracks.length}%c / %c${this.tracksAmount}`,
+        consoleColors.info,
+        consoleColors.value,
+        consoleColors.info,
+        consoleColors.value
+      )
+    }
 
-        this.fileName = fileName;
+    //this.lastVoiceEventTick = Math.max(...this.tracks.map(track =>
+    //track[track.length - 1].ticks));
+    const firstNoteOns = []
+    for (const t of this.tracks) {
+      const firstNoteOn = t.find((e) => (e.messageStatusByte & 0xf0) === messageTypes.noteOn)
+      if (firstNoteOn) {
+        firstNoteOns.push(firstNoteOn.ticks)
+      }
+    }
+    this.firstNoteOn = Math.min(...firstNoteOns)
 
-        // if midiName is "", use the file name
-        if(this.midiName.trim().length === 0 && fileName.length > 0)
-        {
-            this.midiName = formatTitle(fileName);
-        }
+    console.log(
+      `%cMIDI file parsed. Total tick time: %c${this.lastVoiceEventTick}`,
+      consoleColors.info,
+      consoleColors.recognized
+    )
+    console.groupEnd()
 
-        // reverse the tempo changes
-        this.tempoChanges.reverse();
+    if (loopStart !== null && loopEnd === null) {
+      // not a loop
+      loopStart = this.firstNoteOn
+      loopEnd = this.lastVoiceEventTick
+    } else {
+      if (loopStart === null) {
+        loopStart = this.firstNoteOn
+      }
+
+      if (loopEnd === null || loopEnd === 0) {
+        loopEnd = this.lastVoiceEventTick
+      }
     }
 
     /**
-     * @param fileByteArray {ShiftableByteArray}
-     * @returns {{type: string, size: number, data: ShiftableByteArray}}
+     *
+     * @type {{start: number, end: number}}
      */
-    readMIDIChunk(fileByteArray)
-    {
-        const chunk = {};
-        // type
-        chunk.type = readBytesAsString(fileByteArray, 4);
-        // size
-        chunk.size = readBytesAsUintBigEndian(fileByteArray, 4);
-        // data
-        chunk.data = new ShiftableByteArray(chunk.size);
-        const dataSlice = fileByteArray.slice(fileByteArray.currentIndex, fileByteArray.currentIndex + chunk.size);
-        chunk.data.set(dataSlice, 0);
-        fileByteArray.currentIndex += chunk.size;
-        return chunk;
+    this.loop = { start: loopStart, end: loopEnd }
+
+    // get track name
+    this.midiName = ''
+
+    // midi name
+    if (this.tracks.length > 1) {
+      // if more than 1 track and the first track has no notes, just find the first trackName in the first track
+      if (
+        this.tracks[0].find(
+          (message) =>
+            message.messageStatusByte >= messageTypes.noteOn &&
+            message.messageStatusByte < messageTypes.systemExclusive
+        ) === undefined
+      ) {
+        console.log('message', this.tracks[0])
+        let name = this.tracks[0].find(
+          (message) => message.messageStatusByte === messageTypes.trackName
+        )
+        if (name) {
+          this.midiName = decoder.decode(name.messageData)
+        }
+      }
+    } else {
+      // if only 1 track, find the first "track name" event
+      let name = this.tracks[0].find(
+        (message) => message.messageStatusByte === messageTypes.trackName
+      )
+      if (name) {
+        this.midiName = decoder.decode(name.messageData)
+      }
     }
+
+    this.fileName = fileName
+
+    // if midiName is "", use the file name
+    if (this.midiName.trim().length === 0 && fileName.length > 0) {
+      this.midiName = formatTitle(fileName)
+    }
+
+    // reverse the tempo changes
+    this.tempoChanges.reverse()
+  }
+
+  /**
+   * @param fileByteArray {ShiftableByteArray}
+   * @returns {{type: string, size: number, data: ShiftableByteArray}}
+   */
+  readMIDIChunk(fileByteArray) {
+    const chunk = {}
+    // type
+    chunk.type = readBytesAsString(fileByteArray, 4)
+    // size
+    chunk.size = readBytesAsUintBigEndian(fileByteArray, 4)
+    // data
+    chunk.data = new ShiftableByteArray(chunk.size)
+    const dataSlice = fileByteArray.slice(
+      fileByteArray.currentIndex,
+      fileByteArray.currentIndex + chunk.size
+    )
+    chunk.data.set(dataSlice, 0)
+    fileByteArray.currentIndex += chunk.size
+    return chunk
+  }
 }

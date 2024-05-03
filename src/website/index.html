@@ -1,40 +1,40 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SpessaSynth Local Edition</title>
-  <link rel="stylesheet" href='website/css/style.css'>
-</head>
-<body>
-  <div class='spessasynth_main'>
-    <div class="top_part">
-      <div id="synthetizer_controls"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SpessaSynth Local Edition</title>
+    <link rel="stylesheet" href="website/css/style.css" />
+  </head>
+  <body>
+    <div class="spessasynth_main">
+      <div class="top_part">
+        <div id="synthetizer_controls"></div>
 
-      <div id="title_wrapper">
-        <div id="progress_bar"></div>
-        <h1 id="title">SpessaSynth: SoundFont2 Javascript Synthetizer</h1>
-        <div class="midi_and_sf_controller">
-          <label id="file_upload" for='midi_file_input'>Upload your MIDI files</label>
-            <input type="file" accept=".mid" id="midi_file_input" multiple><br/>
+        <div id="title_wrapper">
+          <div id="progress_bar"></div>
+          <h1 id="title">SpessaSynth: SoundFont2 Javascript Synthetizer</h1>
+          <div class="midi_and_sf_controller">
+            <label id="file_upload" for="midi_file_input">Upload your MIDI files</label>
+            <input type="file" accept=".mid" id="midi_file_input" multiple /><br />
 
-          <select id="sf_selector"></select>
+            <select id="sf_selector"></select>
+          </div>
         </div>
-      </div>
 
-      <div id='settings_div'>
+        <div id="settings_div"></div>
+      </div>
+      <canvas id="note_canvas"></canvas>
+      <div id="keyboard"></div>
+      <div id="player_info"></div>
+
+      <div class="bottom_part">
+        <div id="sequencer_controls"></div>
       </div>
     </div>
-    <canvas id="note_canvas"></canvas>
-    <div id='keyboard'></div>
-    <div id='player_info'></div>
 
-    <div class="bottom_part">
-      <div id="sequencer_controls"></div>
-    </div>
-  </div>
-
-  <script src='website/main.js' type="module"></script> <!-- Here the magic happens ;) -->
-</body>
+    <script src="website/main.js" type="module"></script>
+    <!-- Here the magic happens ;) -->
+  </body>
 </html>

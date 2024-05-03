@@ -77,4 +77,4 @@ export const settingsHtml = `
         <button class='seamless_button' id='toggle_mode_button' title='Toggle the interface theme'>Mode: Dark</button>
     </div>
 </div>
-`;
+`

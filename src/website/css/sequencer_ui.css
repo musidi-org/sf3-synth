@@ -1,109 +1,103 @@
-#sequencer_controls
-{
-    width: 80%;
-    position: relative;
-    margin: auto auto 2px;
+#sequencer_controls {
+  width: 80%;
+  position: relative;
+  margin: auto auto 2px;
 
-    --progress-bar-height: 1.4em;
+  --progress-bar-height: 1.4em;
 }
 
-#sequencer_controls #note_progress
-{
-    border-radius: var(--progress-bar-height);
-    background: linear-gradient(95deg, #306, #406);
-    height: var(--progress-bar-height);
-    padding: 5px;
-    transition: all 100ms linear;
-    position: absolute;
+#sequencer_controls #note_progress {
+  border-radius: var(--progress-bar-height);
+  background: linear-gradient(95deg, #306, #406);
+  height: var(--progress-bar-height);
+  padding: 5px;
+  transition: all 100ms linear;
+  position: absolute;
 }
 
-#sequencer_controls .note_progress_light{
-    filter: brightness(3);
+#sequencer_controls .note_progress_light {
+  filter: brightness(3);
 }
 
-#sequencer_controls #note_time
-{
-    position: relative;
-    z-index: 5;
-    font-size: var(--progress-bar-height);
-    text-align: center;
-    color: var(--font-color);
-    margin: auto;
-    width: 100%;
+#sequencer_controls #note_time {
+  position: relative;
+  z-index: 5;
+  font-size: var(--progress-bar-height);
+  text-align: center;
+  color: var(--font-color);
+  margin: auto;
+  width: 100%;
 }
 
-#sequencer_controls #note_time:hover{
-    cursor: pointer;
+#sequencer_controls #note_time:hover {
+  cursor: pointer;
 }
 
-#sequencer_controls .control_buttons
-{
-    position: relative;
-    display: inline-block;
-    transition: all 0.1s ease;
+#sequencer_controls .control_buttons {
+  position: relative;
+  display: inline-block;
+  transition: all 0.1s ease;
 }
 
-#sequencer_controls .control_buttons:hover{
-    cursor: pointer;
+#sequencer_controls .control_buttons:hover {
+  cursor: pointer;
 }
 
-#sequencer_controls #note_progress_background
-{
-    border-radius: var(--progress-bar-height);
-    background: linear-gradient(90deg, #454545, #343434);
-    height: var(--progress-bar-height);
-    position: absolute;
-    padding: 5px;
-    width: 100%;
+#sequencer_controls #note_progress_background {
+  border-radius: var(--progress-bar-height);
+  background: linear-gradient(90deg, #454545, #343434);
+  height: var(--progress-bar-height);
+  position: absolute;
+  padding: 5px;
+  width: 100%;
 }
 
-#sequencer_controls .note_progress_background_light
-{
-    background: linear-gradient(90deg, #ddd, #bbb) !important;
+#sequencer_controls .note_progress_background_light {
+  background: linear-gradient(90deg, #ddd, #bbb) !important;
 }
 
-#sequencer_controls .lyrics{
-    position: fixed;
-    top:0;
-    right: 0;
-    width: 30em;
-    min-width: 30%;
-    max-width: 100%;
-    height: 50%;
-    z-index: 256;
-    display: block;
-    opacity: 0;
-    backdrop-filter: blur(5px) brightness(0.5);
-    background-color: rgba(3, 3, 3, 0.3);
-    transition: opacity 100ms ease-in-out;
-    scroll-behavior: smooth;
-    overflow-y: auto;
-    visibility: hidden;
-    border-radius: 10px;
+#sequencer_controls .lyrics {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 30em;
+  min-width: 30%;
+  max-width: 100%;
+  height: 50%;
+  z-index: 256;
+  display: block;
+  opacity: 0;
+  backdrop-filter: blur(5px) brightness(0.5);
+  background-color: rgba(3, 3, 3, 0.3);
+  transition: opacity 100ms ease-in-out;
+  scroll-behavior: smooth;
+  overflow-y: auto;
+  visibility: hidden;
+  border-radius: 10px;
 }
 
-#sequencer_controls .lyrics_light{
-    backdrop-filter: blur(5px) brightness(1.5);
-    background-color: rgba(250, 250, 250, 0.8);
+#sequencer_controls .lyrics_light {
+  backdrop-filter: blur(5px) brightness(1.5);
+  background-color: rgba(250, 250, 250, 0.8);
 }
 
-.lyrics_title{
-    position: sticky;
-    top: 2px;
-    border-radius: 10px;
+.lyrics_title {
+  position: sticky;
+  top: 2px;
+  border-radius: 10px;
 }
 
-.lyrics_selector{
-    position: sticky;
-    top: 2em;
-    width: 100%;
-    border: none;
-    font-size: 16px;
-    padding: 5px;
-    background: transparent;
+.lyrics_selector {
+  position: sticky;
+  top: 2em;
+  width: 100%;
+  border: none;
+  font-size: 16px;
+  padding: 5px;
+  background: transparent;
 }
 
-.lyrics_show{
-    opacity: 1 !important;
-    visibility: visible !important;
+.lyrics_show {
+  opacity: 1 !important;
+  visibility: visible !important;
 }
