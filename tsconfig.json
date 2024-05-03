@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "outDir": "dist/esm",
+    "declarationDir": "dist/types",
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "declaration": true,
+    "sourceMap": true,
+    "strict": true,
+    "alwaysStrict": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"],
+  "exclude": ["**/test"]
+}
