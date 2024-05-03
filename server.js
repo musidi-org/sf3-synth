@@ -1,4 +1,3 @@
-import open from "open";
 import express from "express";
 import fs from "fs";
 import path from 'path';
@@ -15,7 +14,7 @@ const __dirname = path.dirname(__filename);
 app.use(express.static("src"));
 app.use(express.static("soundfonts"));
 
-fs.writeFile("config.json", "{}", {flag: "wx"}, () => {});
+const config = {}
 
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "src", "website", "index.html"));
@@ -25,7 +24,6 @@ app.get("/soundfonts", (req, res) => {
     const fileNames = fs.readdirSync("soundfonts").filter(fName => fName.slice(-3).toLowerCase() === "sf2");
 
     // check for last used soundfont
-    const config = JSON.parse(fs.readFileSync("config.json", "utf-8"));
     if(config['lastUsedSf2'])
     {
         if(fileNames.includes(config['lastUsedSf2']))
@@ -51,14 +49,11 @@ app.get("/soundfonts", (req, res) => {
 })
 
 app.get("/setlastsf2", (req) => {
-    const config = JSON.parse(fs.readFileSync("config.json", "utf-8"));
     config["lastUsedSf2"] = req.query['sfname'];
     fs.writeFile("config.json", JSON.stringify(config), { flag: "w"}, () => {});
 });
 
 app.listen(PORT,  HOST, undefined, () =>{
     let url = `http://localhost:${PORT}`;
-    open(url).then(() => {
-        console.log(`Running on ${url}. A browser window should open.`);
-    });
+    console.log(`Running on ${url}.`);
 });
