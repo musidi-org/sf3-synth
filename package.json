@@ -1,6 +1,6 @@
 {
-  "name": "SpessaSynth",
-  "version": "1.0.0",
+  "name": "sf3-synth",
+  "version": "0.0.1",
   "dependencies": {
     "@types/webaudioapi": "^0.0.27",
     "@types/webmidi": "^2.0.7",
